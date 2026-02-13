@@ -64,8 +64,14 @@ def test_game_over_banner_draw():
     assert "#FFFFFF" in html
 
 
-def test_inline_script_present():
+def test_no_inline_script():
+    """Gradio strips <script> from gr.HTML, so we must not embed it."""
     g = GomokuGameState()
     html = render_board_svg(g)
-    assert "<script>" in html
-    assert "board-click" in html
+    assert "<script>" not in html
+
+
+def test_click_js_exported():
+    from betagomoku.ui.board_component import BOARD_CLICK_JS
+    assert "board-click" in BOARD_CLICK_JS
+    assert "coord-input" in BOARD_CLICK_JS
