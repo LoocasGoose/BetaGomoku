@@ -4,7 +4,7 @@ import gradio as gr
 
 from betagomoku.ui.play_tab import build_play_tab
 
-with gr.Blocks(title="BetaGomoku", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="BetaGomoku") as demo:
     gr.Markdown("# BetaGomoku")
     gr.Markdown("AlphaZero-style Gomoku — 9x9 board, 5 in a row to win.")
 
@@ -19,4 +19,4 @@ with gr.Blocks(title="BetaGomoku", theme=gr.themes.Soft()) as demo:
         gr.Markdown("*Coming soon — step through self-play games.*")
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(theme=gr.themes.Soft())
