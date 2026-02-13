@@ -172,40 +172,51 @@ def render_board_svg(
         )
 
     parts.append("</svg>")
+    parts.append("</div>")
+    return "\n".join(parts)
 
-    # Inline JS: on every render, bind click listeners on the new SVG circles.
-    # Uses onclick attributes would be simpler but Gradio may sanitize them,
-    # so we use a <script> that runs immediately after the SVG is inserted.
-    parts.append("""
-<script>
-(function() {
-    var wrap = document.getElementById('gomoku-board-wrap');
-    if (!wrap) return;
-    wrap.addEventListener('click', function(e) {
-        var circle = e.target.closest('.board-click');
+
+# JS to inject via demo.load(js=...). Sets up a document-level click
+# delegator once. Gradio strips <script> from gr.HTML, so this is the
+# only reliable way to run JS.
+BOARD_CLICK_JS = """
+() => {
+    if (window._gomokuBound) return;
+    window._gomokuBound = true;
+    document.addEventListener('click', function(e) {
+        var circle = e.target;
+        // Walk up in case the click hit a child (e.g. <title>)
+        while (circle && !circle.classList?.contains('board-click')) {
+            circle = circle.parentElement;
+        }
         if (!circle) return;
         var coord = circle.getAttribute('data-coord');
         if (!coord) return;
-        // Find the coord input — try textarea first (Gradio uses textarea for Textbox)
+
+        // Find the Gradio textbox input element inside #coord-input
         var el = document.querySelector('#coord-input textarea')
               || document.querySelector('#coord-input input');
         if (!el) return;
-        // Use native setter so Gradio's reactive system picks up the change
-        var setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')
-                  || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+
+        // Use the native value setter so Gradio detects the change
+        var proto = el.tagName === 'TEXTAREA'
+            ? HTMLTextAreaElement.prototype
+            : HTMLInputElement.prototype;
+        var setter = Object.getOwnPropertyDescriptor(proto, 'value');
         if (setter && setter.set) {
             setter.set.call(el, coord);
         } else {
             el.value = coord;
         }
         el.dispatchEvent(new Event('input', {bubbles: true}));
-        // Click the submit button (Gradio wraps it in a div with elem_id)
-        var btn = document.querySelector('#coord-submit button')
-               || document.querySelector('#coord-submit');
-        if (btn) btn.click();
-    });
-})();
-</script>""")
+        el.dispatchEvent(new Event('change', {bubbles: true}));
 
-    parts.append("</div>")
-    return "\n".join(parts)
+        // Small delay to let Gradio process the input, then click submit
+        setTimeout(function() {
+            var btn = document.querySelector('#coord-submit button')
+                   || document.querySelector('#coord-submit');
+            if (btn) btn.click();
+        }, 50);
+    });
+}
+"""
