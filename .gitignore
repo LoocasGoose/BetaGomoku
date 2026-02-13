@@ -3,3 +3,6 @@
 /claude.md
 /skills.md
 /.claude
+/__pycache__
+/.pytest_cache
+
