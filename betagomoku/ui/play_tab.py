@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random as _random
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -15,7 +16,7 @@ from betagomoku.game.board import (
     parse_coordinate,
 )
 from betagomoku.game.types import Player
-from betagomoku.ui.board_component import CLICK_JS, render_board_svg
+from betagomoku.ui.board_component import render_board_svg
 
 
 @dataclass
@@ -26,8 +27,22 @@ class GameSession:
     agent: Agent = field(default_factory=RandomAgent)
     human_player: Player = field(default=Player.BLACK)
 
-    def reset(self) -> None:
+    def reset(self, human_player: Optional[Player] = None) -> None:
         self.game = GomokuGameState()
+        if human_player is not None:
+            self.human_player = human_player
+
+    @property
+    def game_over_banner(self) -> str:
+        """Short text for the SVG overlay banner. Empty if game is not over."""
+        g = self.game
+        if not g.is_over:
+            return ""
+        if g.winner is not None:
+            if g.winner == self.human_player:
+                return "You win!"
+            return "AI wins!"
+        return "Draw!"
 
     @property
     def status_text(self) -> str:
@@ -54,7 +69,22 @@ def _make_board_html(session: GameSession) -> str:
         not session.game.is_over
         and session.game.current_player == session.human_player
     )
-    return render_board_svg(session.game, clickable=clickable)
+    return render_board_svg(
+        session.game,
+        clickable=clickable,
+        game_over_message=session.game_over_banner,
+    )
+
+
+def _ai_opening_move(session: GameSession) -> None:
+    """If AI goes first (human is White), let the AI play the opening move."""
+    if (
+        session.human_player == Player.WHITE
+        and not session.game.moves
+        and not session.game.is_over
+    ):
+        ai_move = session.agent.select_move(session.game)
+        session.game.apply_move(ai_move)
 
 
 def _apply_human_move(coord_text: str, session: GameSession):
@@ -113,13 +143,27 @@ def _apply_human_move(coord_text: str, session: GameSession):
     )
 
 
-def _new_game(session: GameSession):
-    session.reset()
+def _new_game_with_color(color_choice: str, session: GameSession):
+    """Start a new game. color_choice is 'Black', 'White', or 'Random'."""
+    if color_choice == "Random":
+        human = _random.choice([Player.BLACK, Player.WHITE])
+    elif color_choice == "White":
+        human = Player.WHITE
+    else:
+        human = Player.BLACK
+
+    session.reset(human_player=human)
+
+    # If human is White, AI (Black) plays first
+    _ai_opening_move(session)
+
+    assigned = "Black" if human is Player.BLACK else "White"
     return (
         _make_board_html(session),
         session.status_text,
         session.move_history_table,
         session,
+        f"You are {assigned}.",
     )
 
 
@@ -186,8 +230,22 @@ def build_play_tab() -> None:
                 interactive=False,
                 lines=2,
             )
+            color_info = gr.Textbox(
+                value="You are Black.",
+                label="Color",
+                interactive=False,
+                lines=1,
+            )
+
+            gr.Markdown("### New Game")
+            color_choice = gr.Radio(
+                choices=["Random", "Black", "White"],
+                value="Random",
+                label="Play as",
+            )
+            new_game_btn = gr.Button("New Game", variant="primary")
+
             with gr.Row():
-                new_game_btn = gr.Button("New Game", variant="primary")
                 undo_btn = gr.Button("Undo")
                 resign_btn = gr.Button("Resign", variant="stop")
 
@@ -208,7 +266,7 @@ def build_play_tab() -> None:
                 headers=["#", "Player", "Move"],
                 datatype=["number", "str", "str"],
                 interactive=False,
-                column_count=(3, "fixed"),
+                column_count=3,
             )
 
     # Outputs shared by most callbacks
@@ -222,9 +280,9 @@ def build_play_tab() -> None:
     )
 
     new_game_btn.click(
-        fn=_new_game,
-        inputs=[session_state],
-        outputs=board_outputs,
+        fn=_new_game_with_color,
+        inputs=[color_choice, session_state],
+        outputs=board_outputs + [color_info],
     )
 
     undo_btn.click(
@@ -238,6 +296,3 @@ def build_play_tab() -> None:
         inputs=[session_state],
         outputs=board_outputs,
     )
-
-    # Bind JS click handler on page load
-    board_html.change(fn=None, js=CLICK_JS)

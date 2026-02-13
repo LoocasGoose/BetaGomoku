@@ -20,8 +20,6 @@ LINE_COLOR = "#4A3728"
 BLACK_STONE = "#1A1A1A"
 WHITE_STONE = "#F5F5F5"
 WHITE_STROKE = "#888"
-LAST_MOVE_COLOR = "#E74C3C"
-HOVER_COLOR = "rgba(0, 0, 0, 0.15)"
 
 
 def _coord(row: int, col: int) -> tuple[int, int]:
@@ -35,9 +33,13 @@ def render_board_svg(
     game_state: GomokuGameState,
     clickable: bool = True,
     highlight_last: bool = True,
+    game_over_message: str = "",
 ) -> str:
-    """Render the board as an SVG string."""
+    """Render the board as an SVG string wrapped in a div with click JS."""
     parts: list[str] = []
+
+    # Wrapper div
+    parts.append(f'<div id="gomoku-board-wrap" style="display:inline-block;position:relative;">')
 
     # SVG header
     parts.append(
@@ -128,7 +130,8 @@ def render_board_svg(
                     f'fill="{marker_color}" opacity="0.7"/>'
                 )
 
-    # Clickable intersection targets (invisible circles)
+    # Clickable intersection targets — use opacity 0 + pointer-events:all
+    # so they actually receive clicks (fill="transparent" does not in SVG)
     if clickable and not game_state.is_over:
         for r in range(1, BOARD_SIZE + 1):
             for c in range(1, BOARD_SIZE + 1):
@@ -140,48 +143,69 @@ def render_board_svg(
                 coord_str = f"{col_label}{r}"
                 parts.append(
                     f'<circle cx="{x}" cy="{y}" r="{CLICK_RADIUS}" '
-                    f'fill="transparent" class="board-click" '
-                    f'data-coord="{coord_str}" style="cursor:pointer">'
+                    f'fill="black" opacity="0" pointer-events="all" '
+                    f'class="board-click" data-coord="{coord_str}" '
+                    f'style="cursor:pointer">'
                     f'<title>{coord_str}</title></circle>'
                 )
 
+    # Game-over overlay banner on the board itself
+    if game_over_message:
+        mid_y = BOARD_PX // 2
+        # Semi-transparent backdrop
+        parts.append(
+            f'<rect x="0" y="{mid_y - 35}" width="{BOARD_PX}" height="70" '
+            f'fill="black" opacity="0.65" rx="6"/>'
+        )
+        # Text color: green for win, red for loss, white for draw
+        if "You win" in game_over_message:
+            text_fill = "#4ADE80"
+        elif "AI wins" in game_over_message:
+            text_fill = "#F87171"
+        else:
+            text_fill = "#FFFFFF"
+        parts.append(
+            f'<text x="{BOARD_PX // 2}" y="{mid_y + 8}" '
+            f'text-anchor="middle" font-size="26" font-weight="bold" '
+            f'font-family="sans-serif" fill="{text_fill}">'
+            f'{game_over_message}</text>'
+        )
+
     parts.append("</svg>")
-    return "\n".join(parts)
 
-
-# JavaScript that handles clicks on the SVG and writes the coordinate to
-# a hidden Gradio Textbox, then triggers its change event.
-CLICK_JS = """
-() => {
-    // Debounce to avoid double-fire
-    if (window._gomokuClickBound) return;
-    window._gomokuClickBound = true;
-
-    document.addEventListener('click', function(e) {
-        const circle = e.target.closest('.board-click');
+    # Inline JS: on every render, bind click listeners on the new SVG circles.
+    # Uses onclick attributes would be simpler but Gradio may sanitize them,
+    # so we use a <script> that runs immediately after the SVG is inserted.
+    parts.append("""
+<script>
+(function() {
+    var wrap = document.getElementById('gomoku-board-wrap');
+    if (!wrap) return;
+    wrap.addEventListener('click', function(e) {
+        var circle = e.target.closest('.board-click');
         if (!circle) return;
-        const coord = circle.getAttribute('data-coord');
+        var coord = circle.getAttribute('data-coord');
         if (!coord) return;
-
-        // Find the hidden coordinate input by elem_id
-        const container = document.querySelector('#coord-input textarea, #coord-input input');
-        if (container) {
-            // Set value using native setter to trigger Gradio's change detection
-            const nativeSetter = Object.getOwnPropertyDescriptor(
-                window.HTMLInputElement.prototype, 'value'
-            )?.set || Object.getOwnPropertyDescriptor(
-                window.HTMLTextAreaElement.prototype, 'value'
-            )?.set;
-            if (nativeSetter) {
-                nativeSetter.call(container, coord);
-            } else {
-                container.value = coord;
-            }
-            container.dispatchEvent(new Event('input', { bubbles: true }));
-            // Trigger the submit button
-            const btn = document.querySelector('#coord-submit');
-            if (btn) btn.click();
+        // Find the coord input — try textarea first (Gradio uses textarea for Textbox)
+        var el = document.querySelector('#coord-input textarea')
+              || document.querySelector('#coord-input input');
+        if (!el) return;
+        // Use native setter so Gradio's reactive system picks up the change
+        var setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')
+                  || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+        if (setter && setter.set) {
+            setter.set.call(el, coord);
+        } else {
+            el.value = coord;
         }
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+        // Click the submit button (Gradio wraps it in a div with elem_id)
+        var btn = document.querySelector('#coord-submit button')
+               || document.querySelector('#coord-submit');
+        if (btn) btn.click();
     });
-}
-"""
+})();
+</script>""")
+
+    parts.append("</div>")
+    return "\n".join(parts)
