@@ -7,7 +7,7 @@ from betagomoku.ui.play_tab import build_play_tab
 
 with gr.Blocks(title="BetaGomoku") as demo:
     gr.Markdown("# BetaGomoku")
-    gr.Markdown("AlphaZero-style Gomoku — 9x9 board, 5 in a row to win.")
+    gr.Markdown("AlphaZero-style Gomoku — 15x15 board, 5 in a row to win.")
 
     with gr.Tab("Play"):
         build_play_tab()
