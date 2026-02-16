@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Optional
 
 from betagomoku.game.board import BOARD_SIZE, COL_LABELS, GomokuGameState
@@ -13,6 +14,7 @@ MARGIN = 40
 BOARD_PX = MARGIN * 2 + CELL_SIZE * (BOARD_SIZE - 1)
 STONE_RADIUS = 14
 CLICK_RADIUS = 16  # Invisible click target radius
+EVAL_BAR_WIDTH = 24
 
 # Colors
 BG_COLOR = "#DCB35C"
@@ -29,17 +31,72 @@ def _coord(row: int, col: int) -> tuple[int, int]:
     return x, y
 
 
+def _eval_to_pct(score: int) -> float:
+    """Map eval score to 0.0-1.0 (fraction for black portion). Uses tanh for smooth clamping."""
+    return 0.5 + 0.5 * math.tanh(score / 10_000)
+
+
+def render_eval_bar(eval_score: int) -> str:
+    """Return an SVG string for the evaluation bar."""
+    pct = _eval_to_pct(eval_score)
+    black_h = int(pct * BOARD_PX)
+    white_h = BOARD_PX - black_h
+
+    parts: list[str] = []
+    parts.append(
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'width="{EVAL_BAR_WIDTH}" height="{BOARD_PX}" '
+        f'viewBox="0 0 {EVAL_BAR_WIDTH} {BOARD_PX}" '
+        f'class="eval-bar">'
+    )
+    # White portion (top when black is winning less)
+    parts.append(
+        f'<rect x="0" y="0" width="{EVAL_BAR_WIDTH}" height="{white_h}" '
+        f'fill="#F5F5F5"/>'
+    )
+    # Black portion (bottom grows as black gets stronger)
+    parts.append(
+        f'<rect x="0" y="{white_h}" width="{EVAL_BAR_WIDTH}" height="{black_h}" '
+        f'fill="#1A1A1A"/>'
+    )
+    # Border
+    parts.append(
+        f'<rect x="0" y="0" width="{EVAL_BAR_WIDTH}" height="{BOARD_PX}" '
+        f'fill="none" stroke="#888" stroke-width="1" rx="3"/>'
+    )
+    # Score label
+    display_score = f"{eval_score / 1000:+.1f}k" if abs(eval_score) >= 1000 else f"{eval_score:+d}"
+    label_y = BOARD_PX // 2
+    # Choose text color based on which half the midpoint sits in
+    text_color = "#F5F5F5" if pct > 0.5 else "#1A1A1A"
+    parts.append(
+        f'<text x="{EVAL_BAR_WIDTH // 2}" y="{label_y + 4}" '
+        f'text-anchor="middle" font-size="10" font-weight="bold" '
+        f'font-family="monospace" fill="{text_color}">'
+        f'{display_score}</text>'
+    )
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
 def render_board_svg(
     game_state: GomokuGameState,
     clickable: bool = True,
     highlight_last: bool = True,
     game_over_message: str = "",
+    eval_score: Optional[int] = None,
 ) -> str:
     """Render the board as an SVG string wrapped in a div with click JS."""
     parts: list[str] = []
 
-    # Wrapper div
-    parts.append(f'<div id="gomoku-board-wrap" style="display:inline-block;position:relative;">')
+    # Wrapper div — use flex layout when eval bar is present
+    if eval_score is not None:
+        parts.append(
+            f'<div id="gomoku-board-wrap" style="display:inline-flex;align-items:stretch;gap:6px;">'
+        )
+        parts.append(render_eval_bar(eval_score))
+    else:
+        parts.append(f'<div id="gomoku-board-wrap" style="display:inline-block;position:relative;">')
 
     # SVG header
     parts.append(
@@ -224,40 +281,72 @@ BOARD_CLICK_JS = """
     if (!window._gomokuProgressBound) {
         window._gomokuProgressBound = true;
         var thinkingWords = [
-            "Accomplishing", "Actioning", "Actualizing", "Baking",
-            "Brewing", "Calculating", "Cerebrating", "Churning",
-            "Clauding", "Coalescing", "Cogitating", "Computing",
-            "Conjuring", "Considering", "Cooking", "Crafting",
-            "Creating", "Crunching", "Deliberating", "Determining",
-            "Doing", "Effecting", "Finagling", "Forging",
-            "Forming", "Generating", "Hatching", "Herding",
-            "Honking", "Hustling", "Ideating", "Inferring",
-            "Manifesting", "Marinating", "Moseying", "Mulling",
-            "Mustering", "Musing", "Noodling", "Percolating",
-            "Pondering", "Processing", "Puttering", "Reticulating",
-            "Ruminating", "Schlepping", "Shucking", "Simmering",
-            "Smooshing", "Spinning", "Stewing", "Synthesizing",
-            "Thinking", "Transmuting", "Vibing", "Working"
+            "Abstracting", "Accomplishing", "Actioning", "Actualizing",
+            "Aligning", "Backpropagating", "Baking", "Bargaining",
+            "Boomeranging", "Bootstrapping", "Brewing", "Caffeinating",
+            "Calculating", "Calibrating", "Cerebrating", "Channeling",
+            "Churning", "Clauding", "Coalescing", "Coaxing",
+            "Cogitating", "Combobulating", "Compressing", "Computing",
+            "Conjuring", "Considering", "Convincing", "Cooking",
+            "Crafting", "Creating", "Cross-examining", "Crunching",
+            "Daydreaming", "Decombobulating", "Deconvolving", "Decoupling",
+            "Deliberating", "Denoising", "Determining", "Differentiating",
+            "Doing", "Effecting", "Embedding", "Expanding",
+            "Extrapolating", "Factorizing", "Fermenting", "Fiddling",
+            "Finagling", "Forging", "Formalizing", "Forming",
+            "Freestyling", "Generalizing", "Generating", "Hallucinating",
+            "Harmonizing", "Hatching", "Herding", "Honking",
+            "Hustling", "Hyperventilating", "Ideating", "Inferring",
+            "Integrating", "Interpolating", "Interrogating", "Juggling",
+            "Linearizing", "Looping", "Manifesting", "Mapping",
+            "Marinating", "Massaging", "Mediating", "Metabolizing",
+            "Moseying", "Mulling", "Mustering", "Musing",
+            "Negotiating", "Noodling", "Normalizing", "Nudging",
+            "Oscillating", "Percolating", "Persuading", "Placating",
+            "Poking", "Pondering", "Ponderizing", "Postulating",
+            "Processing", "Prodding", "Projecting", "Pruning",
+            "Puttering", "Realigning", "Rebalancing", "Recontextualizing",
+            "Rederiving", "Reframing", "Regularizing", "Reparameterizing",
+            "Resonating", "Rethreading", "Reticulating", "Ricocheting",
+            "Ruminating", "Sanity-checking", "Schlepping", "Shucking",
+            "Simmering", "Smoothing", "Smooshing", "Spinning",
+            "Spiraling", "Stabilizing", "Stewing", "Stress-testing",
+            "Summoning", "Synthesizing", "Thinking", "Tinkering",
+            "Translating", "Transmuting", "Triangulating", "Unfolding",
+            "Unrolling", "Unspooling", "Untangling", "Untwisting",
+            "Unwinding", "Vaporizing", "Vibing", "Vibrating",
+            "Working", "Wrangling", "Wrestling"
         ];
         var pickedWord = null;
-        setInterval(function() {
+        var lastWord = null;
+        function swapProcessing() {
             var found = false;
-            var allEls = document.querySelectorAll('p, span, div');
-            allEls.forEach(function(el) {
-                if (el.children.length > 0) return;
-                var txt = el.textContent;
-                if (txt && txt.indexOf('processing') !== -1) {
+            var walker = document.createTreeWalker(
+                document.body, NodeFilter.SHOW_TEXT
+            );
+            var node;
+            while (node = walker.nextNode()) {
+                var idx = node.data.indexOf('processing');
+                if (idx === -1 && lastWord) {
+                    idx = node.data.indexOf(lastWord);
+                }
+                if (idx !== -1) {
+                    var oldWord = node.data.indexOf('processing') !== -1
+                        ? 'processing' : lastWord;
                     if (!pickedWord) {
                         pickedWord = thinkingWords[
                             Math.floor(Math.random() * thinkingWords.length)
                         ];
                     }
-                    el.textContent = txt.replace('processing', pickedWord);
+                    node.replaceData(idx, oldWord.length, pickedWord);
+                    lastWord = pickedWord;
                     found = true;
                 }
-            });
-            if (!found) pickedWord = null;
-        }, 1);
+            }
+            if (!found) { pickedWord = null; lastWord = null; }
+            requestAnimationFrame(swapProcessing);
+        }
+        requestAnimationFrame(swapProcessing);
     }
 }
 """
