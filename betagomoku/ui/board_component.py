@@ -219,5 +219,38 @@ BOARD_CLICK_JS = """
             if (btn) btn.click();
         }, 50);
     });
+
+    // --- Randomize "Processing" loading text ---
+    if (!window._gomokuProgressBound) {
+        window._gomokuProgressBound = true;
+        var thinkingWords = [
+            "Accomplishing", "Actioning", "Actualizing", "Baking",
+            "Brewing", "Calculating", "Cerebrating", "Churning",
+            "Clauding", "Coalescing", "Cogitating", "Computing",
+            "Conjuring", "Considering", "Cooking", "Crafting",
+            "Creating", "Crunching", "Deliberating", "Determining",
+            "Doing", "Effecting", "Finagling", "Forging",
+            "Forming", "Generating", "Hatching", "Herding",
+            "Honking", "Hustling", "Ideating", "Inferring",
+            "Manifesting", "Marinating", "Moseying", "Mulling",
+            "Mustering", "Musing", "Noodling", "Percolating",
+            "Pondering", "Processing", "Puttering", "Reticulating",
+            "Ruminating", "Schlepping", "Shucking", "Simmering",
+            "Smooshing", "Spinning", "Stewing", "Synthesizing",
+            "Thinking", "Transmuting", "Vibing", "Working"
+        ];
+        function replaceProcessing() {
+            document.querySelectorAll('p.loading').forEach(function(el) {
+                if (el.textContent.indexOf('Processing') !== -1) {
+                    var word = thinkingWords[
+                        Math.floor(Math.random() * thinkingWords.length)
+                    ];
+                    el.textContent = el.textContent.replace('Processing', word);
+                }
+            });
+        }
+        var observer = new MutationObserver(replaceProcessing);
+        observer.observe(document.body, {childList: true, subtree: true});
+    }
 }
 """

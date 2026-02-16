@@ -9,7 +9,14 @@ from typing import Optional
 import gradio as gr
 
 from betagomoku.agent.base import Agent
+from betagomoku.agent.baseline_agent import BaselineAgent
 from betagomoku.agent.random_agent import RandomAgent
+
+AGENT_CHOICES: dict[str, Agent] = {
+    "BaselineAgent (d=2)": BaselineAgent(depth=2),
+    "BaselineAgent (d=3)": BaselineAgent(depth=3),
+    "RandomAgent": RandomAgent(),
+}
 from betagomoku.game.board import (
     GomokuGameState,
     format_point,
@@ -24,7 +31,7 @@ class GameSession:
     """Per-tab game state held in gr.State."""
 
     game: GomokuGameState = field(default_factory=GomokuGameState)
-    agent: Agent = field(default_factory=RandomAgent)
+    agent: Agent = field(default_factory=lambda: BaselineAgent(depth=2))
     human_player: Player = field(default=Player.BLACK)
 
     def reset(self, human_player: Optional[Player] = None) -> None:
@@ -143,7 +150,7 @@ def _apply_human_move(coord_text: str, session: GameSession):
     )
 
 
-def _new_game_with_color(color_choice: str, session: GameSession):
+def _new_game_with_color(color_choice: str, agent_choice: str, session: GameSession):
     """Start a new game. color_choice is 'Black', 'White', or 'Random'."""
     if color_choice == "Random":
         human = _random.choice([Player.BLACK, Player.WHITE])
@@ -152,6 +159,7 @@ def _new_game_with_color(color_choice: str, session: GameSession):
     else:
         human = Player.BLACK
 
+    session.agent = AGENT_CHOICES.get(agent_choice, RandomAgent())
     session.reset(human_player=human)
 
     # If human is White, AI (Black) plays first
@@ -243,6 +251,11 @@ def build_play_tab() -> None:
                 value="Random",
                 label="Play as",
             )
+            agent_choice = gr.Dropdown(
+                choices=list(AGENT_CHOICES.keys()),
+                value=list(AGENT_CHOICES.keys())[0],
+                label="Opponent",
+            )
             new_game_btn = gr.Button("New Game", variant="primary")
 
             with gr.Row():
@@ -281,7 +294,7 @@ def build_play_tab() -> None:
 
     new_game_btn.click(
         fn=_new_game_with_color,
-        inputs=[color_choice, session_state],
+        inputs=[color_choice, agent_choice, session_state],
         outputs=board_outputs + [color_info],
     )
 
