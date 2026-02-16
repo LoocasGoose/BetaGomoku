@@ -45,6 +45,27 @@ AlphaZero-style RL Gomoku agent with a Gradio-based web UI for interactive play 
 ### Test results
 28 tests, all passing.
 
+## Completed — Baseline Agent (Negamax + Alpha-Beta)
+
+### Files created/modified
+
+| File | Purpose |
+|------|---------|
+| `betagomoku/agent/baseline_agent.py` | `BaselineAgent`: negamax search with alpha-beta pruning, pattern-based static evaluation, candidate generation (Chebyshev distance 2), move ordering heuristic |
+| `tests/test_baseline_agent.py` | 21 tests: pattern scoring, evaluation, candidate generation, search (wins/blocks), agent config |
+| `betagomoku/ui/play_tab.py` | Added opponent dropdown (BaselineAgent d=2, RandomAgent) |
+
+### Key design decisions
+1. **Pattern scoring**: consecutive groups scored by (count, open_ends) — five=100k, open-four=10k, etc.
+2. **Absolute evaluation**: positive = BLACK advantage; negamax uses color multiplier (+1/-1)
+3. **Chebyshev distance 2 candidates**: limits branching factor to ~20-50 moves vs 225 legal moves
+4. **Move ordering**: offensive pattern score + 0.5 * defensive (blocking) score for alpha-beta efficiency
+5. **Depth 2 default**: safe for real-time play on 15x15
+6. **Immediate win check**: early exit before full search if a winning move exists
+
+### Test results
+61 tests, all passing.
+
 ## Remaining Phases
 
 ### Phase 3: Training Dashboard
