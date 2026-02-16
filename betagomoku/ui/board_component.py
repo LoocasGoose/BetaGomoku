@@ -246,18 +246,18 @@ BOARD_CLICK_JS = """
             allEls.forEach(function(el) {
                 if (el.children.length > 0) return;
                 var txt = el.textContent;
-                if (txt && txt.indexOf('Processing') !== -1) {
+                if (txt && txt.indexOf('processing') !== -1) {
                     if (!pickedWord) {
                         pickedWord = thinkingWords[
                             Math.floor(Math.random() * thinkingWords.length)
                         ];
                     }
-                    el.textContent = txt.replace('Processing', pickedWord);
+                    el.textContent = txt.replace('processing', pickedWord);
                     found = true;
                 }
             });
             if (!found) pickedWord = null;
-        }, 100);
+        }, 1);
     }
 }
 """
