@@ -9,7 +9,7 @@ from typing import Optional
 import gradio as gr
 
 from betagomoku.agent.base import Agent
-from betagomoku.agent.baseline_agent import BaselineAgent
+from betagomoku.agent.baseline_agent import BaselineAgent, evaluate
 from betagomoku.agent.random_agent import RandomAgent
 
 AGENT_CHOICES: dict[str, Agent] = {
@@ -76,10 +76,12 @@ def _make_board_html(session: GameSession) -> str:
         not session.game.is_over
         and session.game.current_player == session.human_player
     )
+    eval_score = evaluate(session.game) if session.game.moves else None
     return render_board_svg(
         session.game,
         clickable=clickable,
         game_over_message=session.game_over_banner,
+        eval_score=eval_score,
     )
 
 
