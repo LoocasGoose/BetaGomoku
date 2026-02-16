@@ -239,18 +239,25 @@ BOARD_CLICK_JS = """
             "Smooshing", "Spinning", "Stewing", "Synthesizing",
             "Thinking", "Transmuting", "Vibing", "Working"
         ];
-        function replaceProcessing() {
-            document.querySelectorAll('p.loading').forEach(function(el) {
-                if (el.textContent.indexOf('Processing') !== -1) {
-                    var word = thinkingWords[
-                        Math.floor(Math.random() * thinkingWords.length)
-                    ];
-                    el.textContent = el.textContent.replace('Processing', word);
+        var pickedWord = null;
+        setInterval(function() {
+            var found = false;
+            var allEls = document.querySelectorAll('p, span, div');
+            allEls.forEach(function(el) {
+                if (el.children.length > 0) return;
+                var txt = el.textContent;
+                if (txt && txt.indexOf('Processing') !== -1) {
+                    if (!pickedWord) {
+                        pickedWord = thinkingWords[
+                            Math.floor(Math.random() * thinkingWords.length)
+                        ];
+                    }
+                    el.textContent = txt.replace('Processing', pickedWord);
+                    found = true;
                 }
             });
-        }
-        var observer = new MutationObserver(replaceProcessing);
-        observer.observe(document.body, {childList: true, subtree: true});
+            if (!found) pickedWord = null;
+        }, 100);
     }
 }
 """

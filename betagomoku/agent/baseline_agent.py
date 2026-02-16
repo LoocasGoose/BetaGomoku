@@ -19,7 +19,7 @@ PATTERN_SCORES: dict[tuple[int, int], int] = {
     (5, 2): 100_000,
     (4, 2): 50_000,   # open four — practically a win
     (4, 1): 8_000,    # half-open four — forcing, opponent must respond
-    (3, 2): 8_000,    # open three — creates open four next move
+    (3, 2): 15_000,    # open three — creates open four next move
     (3, 1): 1_000,    # half-open three
     (2, 2): 1_000,    # open two
     (2, 1): 100,      # half-open two
