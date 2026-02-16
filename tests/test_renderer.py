@@ -75,3 +75,17 @@ def test_click_js_exported():
     from betagomoku.ui.board_component import BOARD_CLICK_JS
     assert "board-click" in BOARD_CLICK_JS
     assert "coord-input" in BOARD_CLICK_JS
+
+
+def test_eval_bar_present_when_score_provided():
+    g = GomokuGameState()
+    html = render_board_svg(g, eval_score=5000)
+    assert 'class="eval-bar"' in html
+    assert "inline-flex" in html
+
+
+def test_eval_bar_absent_when_score_none():
+    g = GomokuGameState()
+    html = render_board_svg(g, eval_score=None)
+    assert 'class="eval-bar"' not in html
+    assert "inline-flex" not in html

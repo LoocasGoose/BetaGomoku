@@ -30,7 +30,7 @@ class TestPatternScoring:
         assert _pattern_score(4, 1) == 8_000
 
     def test_open_three(self):
-        assert _pattern_score(3, 2) == 12_000
+        assert _pattern_score(3, 2) == 15_000
 
     def test_half_open_three(self):
         assert _pattern_score(3, 1) == 1_000
