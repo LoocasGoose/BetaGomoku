@@ -4,7 +4,7 @@ from betagomoku.ui.play_tab import GameSession, _new_game_with_color
 
 def test_new_game_as_black():
     session = GameSession()
-    result = _new_game_with_color("Black", session)
+    result = _new_game_with_color("Black", "RandomAgent", session)
     assert session.human_player is Player.BLACK
     assert len(session.game.moves) == 0  # no AI opening move
     assert "You are Black" in result[4]
@@ -12,7 +12,7 @@ def test_new_game_as_black():
 
 def test_new_game_as_white_ai_goes_first():
     session = GameSession()
-    result = _new_game_with_color("White", session)
+    result = _new_game_with_color("White", "RandomAgent", session)
     assert session.human_player is Player.WHITE
     # AI (Black) should have played the opening move
     assert len(session.game.moves) == 1
@@ -25,7 +25,7 @@ def test_new_game_random_assigns_valid_color():
     session = GameSession()
     colors_seen = set()
     for _ in range(50):
-        _new_game_with_color("Random", session)
+        _new_game_with_color("Random", "RandomAgent", session)
         colors_seen.add(session.human_player)
     # With 50 tries, we should see both colors
     assert Player.BLACK in colors_seen
