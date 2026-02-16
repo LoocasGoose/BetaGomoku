@@ -8,7 +8,7 @@ from typing import Generator
 import gradio as gr
 
 from betagomoku.agent.base import Agent
-from betagomoku.agent.baseline_agent import BaselineAgent
+from betagomoku.agent.baseline_agent import BaselineAgent, evaluate
 from betagomoku.agent.random_agent import RandomAgent
 from betagomoku.game.board import GomokuGameState, format_point
 from betagomoku.game.types import Player
@@ -24,7 +24,8 @@ MOVE_DELAY = 0.4  # seconds between moves
 
 
 def _render_arena_board(game: GomokuGameState, result_msg: str = "") -> str:
-    return render_board_svg(game, clickable=False, game_over_message=result_msg)
+    eval_score = evaluate(game) if game.moves else None
+    return render_board_svg(game, clickable=False, game_over_message=result_msg, eval_score=eval_score)
 
 
 def _result_message(game: GomokuGameState) -> str:
