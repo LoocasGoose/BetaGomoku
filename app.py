@@ -2,6 +2,7 @@
 
 import gradio as gr
 
+from betagomoku.ui.arena_tab import build_arena_tab
 from betagomoku.ui.board_component import BOARD_CLICK_JS
 from betagomoku.ui.play_tab import build_play_tab
 
@@ -11,6 +12,9 @@ with gr.Blocks(title="BetaGomoku") as demo:
 
     with gr.Tab("Play"):
         build_play_tab()
+
+    with gr.Tab("Arena"):
+        build_arena_tab()
 
     # Placeholder tabs for future phases
     with gr.Tab("Training Dashboard"):
