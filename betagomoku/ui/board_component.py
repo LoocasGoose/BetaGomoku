@@ -8,11 +8,11 @@ from betagomoku.game.board import BOARD_SIZE, COL_LABELS, GomokuGameState
 from betagomoku.game.types import Player, Point
 
 # Layout constants
-CELL_SIZE = 50
+CELL_SIZE = 36
 MARGIN = 40
 BOARD_PX = MARGIN * 2 + CELL_SIZE * (BOARD_SIZE - 1)
-STONE_RADIUS = 20
-CLICK_RADIUS = 22  # Invisible click target radius
+STONE_RADIUS = 14
+CLICK_RADIUS = 16  # Invisible click target radius
 
 # Colors
 BG_COLOR = "#DCB35C"
@@ -71,10 +71,11 @@ def render_board_svg(
             f'stroke="{LINE_COLOR}" stroke-width="1"/>'
         )
 
-    # Star points (center for 9x9)
-    center = (BOARD_SIZE + 1) // 2
-    cx, cy = _coord(center, center)
-    parts.append(f'<circle cx="{cx}" cy="{cy}" r="4" fill="{LINE_COLOR}"/>')
+    # Star points (standard 15x15: center + 4 corners of 4-4 points)
+    star_positions = [(4, 4), (4, 12), (12, 4), (12, 12), (8, 8)]
+    for sr, sc in star_positions:
+        sx, sy = _coord(sr, sc)
+        parts.append(f'<circle cx="{sx}" cy="{sy}" r="3" fill="{LINE_COLOR}"/>')
 
     # Column labels (top and bottom)
     for c in range(1, BOARD_SIZE + 1):

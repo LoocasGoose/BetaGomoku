@@ -5,27 +5,28 @@ from typing import Optional
 
 from .types import Player, Point
 
-BOARD_SIZE = 9
+BOARD_SIZE = 15
 WIN_LENGTH = 5
 
-# Column labels: A-I (skipping no letters for 9x9)
-COL_LABELS = "ABCDEFGHI"
+# Column labels: A-O (skipping no letters for 15x15)
+COL_LABELS = "ABCDEFGHIJKLMNO"
 
 
 def parse_coordinate(text: str) -> Optional[Point]:
-    """Parse a coordinate string like 'E5' into a Point.
+    """Parse a coordinate string like 'E5' or 'H12' into a Point.
 
-    Column is a letter A-I, row is a number 1-9.
+    Column is a letter A-O, row is a number 1-15.
     Returns None if the string is invalid.
     """
     text = text.strip().upper()
-    if len(text) < 2 or len(text) > 2:
+    if len(text) < 2 or len(text) > 3:
         return None
-    col_char, row_char = text[0], text[1]
+    col_char = text[0]
+    row_str = text[1:]
     if col_char not in COL_LABELS:
         return None
     try:
-        row = int(row_char)
+        row = int(row_str)
     except ValueError:
         return None
     if not (1 <= row <= BOARD_SIZE):
@@ -49,7 +50,7 @@ class Move:
 
 
 class Board:
-    """9x9 Gomoku board. Tracks stone placement."""
+    """15x15 Gomoku board. Tracks stone placement."""
 
     def __init__(self) -> None:
         self._grid: dict[Point, Player] = {}
@@ -76,7 +77,7 @@ class Board:
 
 
 class GomokuGameState:
-    """Full game state for Gomoku (9x9, 5-in-a-row)."""
+    """Full game state for Gomoku (15x15, 5-in-a-row)."""
 
     def __init__(self) -> None:
         self.board = Board()
