@@ -14,14 +14,15 @@ class TestParseCoordinate:
     def test_valid(self):
         assert parse_coordinate("A1") == Point(1, 1)
         assert parse_coordinate("E5") == Point(5, 5)
-        assert parse_coordinate("I9") == Point(9, 9)
+        assert parse_coordinate("O15") == Point(15, 15)
         assert parse_coordinate("e5") == Point(5, 5)  # case insensitive
+        assert parse_coordinate("H12") == Point(12, 8)  # multi-digit row
 
     def test_invalid(self):
         assert parse_coordinate("") is None
         assert parse_coordinate("Z1") is None
         assert parse_coordinate("A0") is None
-        assert parse_coordinate("A10") is None
+        assert parse_coordinate("A16") is None
         assert parse_coordinate("XX") is None
 
 
@@ -29,7 +30,7 @@ class TestFormatPoint:
     def test_basic(self):
         assert format_point(Point(1, 1)) == "A1"
         assert format_point(Point(5, 5)) == "E5"
-        assert format_point(Point(9, 9)) == "I9"
+        assert format_point(Point(15, 15)) == "O15"
 
 
 class TestBoard:
@@ -50,9 +51,9 @@ class TestBoard:
     def test_is_on_grid(self):
         b = Board()
         assert b.is_on_grid(Point(1, 1))
-        assert b.is_on_grid(Point(9, 9))
+        assert b.is_on_grid(Point(15, 15))
         assert not b.is_on_grid(Point(0, 1))
-        assert not b.is_on_grid(Point(1, 10))
+        assert not b.is_on_grid(Point(1, 16))
 
 
 class TestGomokuGameState:

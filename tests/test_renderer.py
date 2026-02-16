@@ -1,4 +1,4 @@
-from betagomoku.game.board import GomokuGameState
+from betagomoku.game.board import BOARD_SIZE, GomokuGameState
 from betagomoku.game.types import Player, Point
 from betagomoku.ui.board_component import render_board_svg
 
@@ -9,8 +9,8 @@ def test_empty_board_svg():
     assert "<svg" in html
     assert "</svg>" in html
     assert "gomoku-board" in html
-    # Should have click targets for all 81 intersections
-    assert html.count('class="board-click"') == 81
+    # Should have click targets for all intersections
+    assert html.count('class="board-click"') == BOARD_SIZE * BOARD_SIZE
 
 
 def test_svg_with_stones():
@@ -18,8 +18,8 @@ def test_svg_with_stones():
     g.apply_move(Point(5, 5))  # Black
     g.apply_move(Point(5, 6))  # White
     html = render_board_svg(g)
-    # 2 stones placed, so 79 click targets
-    assert html.count('class="board-click"') == 79
+    # 2 stones placed, so 2 fewer click targets
+    assert html.count('class="board-click"') == BOARD_SIZE * BOARD_SIZE - 2
 
 
 def test_svg_not_clickable_when_game_over():
