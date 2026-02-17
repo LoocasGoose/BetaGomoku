@@ -5,6 +5,7 @@ import gradio as gr
 from betagomoku.ui.arena_tab import build_arena_tab
 from betagomoku.ui.board_component import BOARD_CLICK_JS
 from betagomoku.ui.play_tab import build_play_tab
+from betagomoku.ui.replay_tab import build_replay_tab
 
 with gr.Blocks(title="BetaGomoku") as demo:
     gr.Markdown("# BetaGomoku")
@@ -21,7 +22,7 @@ with gr.Blocks(title="BetaGomoku") as demo:
         gr.Markdown("*Coming soon — training metrics and plots.*")
 
     with gr.Tab("Replay"):
-        gr.Markdown("*Coming soon — step through self-play games.*")
+        build_replay_tab()
 
     # Bind board click handler JS on page load
     demo.load(fn=None, js=BOARD_CLICK_JS)
