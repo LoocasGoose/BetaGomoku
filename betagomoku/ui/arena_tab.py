@@ -11,12 +11,15 @@ from betagomoku.agent.base import Agent
 from betagomoku.agent.baseline_agent import BaselineAgent, evaluate
 from betagomoku.agent.random_agent import RandomAgent
 from betagomoku.game.board import GomokuGameState, format_point
+from betagomoku.game.record import save_game
 from betagomoku.game.types import Player
 from betagomoku.ui.board_component import render_board_svg
 
 ARENA_AGENTS: dict[str, Agent] = {
+    "BaselineAgent (d=1)": BaselineAgent(depth=1),
     "BaselineAgent (d=2)": BaselineAgent(depth=2),
     "BaselineAgent (d=3)": BaselineAgent(depth=3),
+    "BaselineAgent (d=4)": BaselineAgent(depth=4),
     "RandomAgent": RandomAgent(),
 }
 
@@ -49,17 +52,23 @@ def _run_arena(
     black_name: str,
     white_name: str,
     delay: float,
+    arena_state: dict,
 ) -> Generator:
     """Generator that yields board updates after each move."""
     black_agent = ARENA_AGENTS.get(black_name, RandomAgent())
     white_agent = ARENA_AGENTS.get(white_name, RandomAgent())
     game = GomokuGameState()
 
+    arena_state["game"] = game
+    arena_state["black_name"] = black_name
+    arena_state["white_name"] = white_name
+
     # Initial state
     yield (
         _render_arena_board(game),
         f"Game started: {black_name} (Black) vs {white_name} (White)",
         _move_table(game),
+        arena_state,
     )
 
     while not game.is_over:
@@ -80,14 +89,30 @@ def _run_arena(
             _render_arena_board(game, result),
             status,
             _move_table(game),
+            arena_state,
         )
 
         if not game.is_over:
             time.sleep(delay)
 
 
+def _save_arena_game(arena_state: dict) -> str:
+    """Save the most recent arena game."""
+    game = arena_state.get("game")
+    if game is None or not game.moves:
+        return "No game to save. Run a match first."
+    filename = save_game(
+        game,
+        arena_state.get("black_name", "Black"),
+        arena_state.get("white_name", "White"),
+    )
+    return f"Saved: {filename}"
+
+
 def build_arena_tab() -> None:
     """Construct the Arena tab UI inside a gr.Blocks context."""
+
+    arena_state = gr.State({})
 
     with gr.Row():
         with gr.Column(scale=3):
@@ -122,6 +147,8 @@ def build_arena_tab() -> None:
                 label="Delay between moves (sec)",
             )
             start_btn = gr.Button("Start", variant="primary")
+            save_btn = gr.Button("Save Game")
+            save_status = gr.Textbox(label="Save", interactive=False, lines=1)
 
             gr.Markdown("### Move History")
             move_table = gr.Dataframe(
@@ -133,6 +160,12 @@ def build_arena_tab() -> None:
 
     start_btn.click(
         fn=_run_arena,
-        inputs=[black_choice, white_choice, delay_slider],
-        outputs=[board_html, status_text, move_table],
+        inputs=[black_choice, white_choice, delay_slider, arena_state],
+        outputs=[board_html, status_text, move_table, arena_state],
+    )
+
+    save_btn.click(
+        fn=_save_arena_game,
+        inputs=[arena_state],
+        outputs=[save_status],
     )

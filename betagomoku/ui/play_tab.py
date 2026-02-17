@@ -13,8 +13,10 @@ from betagomoku.agent.baseline_agent import BaselineAgent, evaluate
 from betagomoku.agent.random_agent import RandomAgent
 
 AGENT_CHOICES: dict[str, Agent] = {
+    "BaselineAgent (d=1)": BaselineAgent(depth=1),
     "BaselineAgent (d=2)": BaselineAgent(depth=2),
     "BaselineAgent (d=3)": BaselineAgent(depth=3),
+    "BaselineAgent (d=4)": BaselineAgent(depth=4),
     "RandomAgent": RandomAgent(),
 }
 from betagomoku.game.board import (
@@ -22,6 +24,7 @@ from betagomoku.game.board import (
     format_point,
     parse_coordinate,
 )
+from betagomoku.game.record import save_game
 from betagomoku.game.types import Player
 from betagomoku.ui.board_component import render_board_svg
 
@@ -220,6 +223,20 @@ def _resign(session: GameSession):
     )
 
 
+def _save_game(session: GameSession) -> str:
+    """Save the current game to disk."""
+    if not session.game.moves:
+        return "No moves to save."
+    human_color = "Black" if session.human_player is Player.BLACK else "White"
+    agent_name = session.agent.name if hasattr(session.agent, "name") else "AI"
+    if session.human_player is Player.BLACK:
+        black_name, white_name = f"Human_{human_color}", agent_name
+    else:
+        black_name, white_name = agent_name, f"Human_{human_color}"
+    filename = save_game(session.game, black_name, white_name)
+    return f"Saved: {filename}"
+
+
 def build_play_tab() -> None:
     """Construct the Play tab UI inside a gr.Blocks context."""
 
@@ -263,6 +280,8 @@ def build_play_tab() -> None:
             with gr.Row():
                 undo_btn = gr.Button("Undo")
                 resign_btn = gr.Button("Resign", variant="stop")
+            save_btn = gr.Button("Save Game")
+            save_status = gr.Textbox(label="Save", interactive=False, lines=1)
 
             gr.Markdown("### Enter Move")
             coord_input = gr.Textbox(
@@ -310,4 +329,10 @@ def build_play_tab() -> None:
         fn=_resign,
         inputs=[session_state],
         outputs=board_outputs,
+    )
+
+    save_btn.click(
+        fn=_save_game,
+        inputs=[session_state],
+        outputs=[save_status],
     )
