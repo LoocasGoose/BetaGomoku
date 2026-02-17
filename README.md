@@ -1,16 +1,14 @@
 # BetaGomoku
 
-AlphaGo-style reinforcement learning agent for Gomoku (9x9 board, 5-in-a-row), with a Gradio web UI.
+AlphaZero-style Gomoku agent with a Gradio web UI. 15x15 board, 5-in-a-row to win.
 
-## Current State
+## Features
 
-**Phases 1-2 complete**: game engine and interactive Play tab vs a random agent.
-
-- 9x9 board with full game logic (placement, win detection in all directions, undo, draw)
-- Clickable SVG board rendered via `gr.HTML` with coordinate text input as fallback
-- Play as Black, White, or Random — AI plays the opening move when human is White
-- Undo (removes human + AI move pair), resign, new game controls
-- Game-over banner overlay on the board (green for win, red for loss, white for draw)
+- **Play tab** — Human vs AI with clickable SVG board, undo, resign, eval bar
+- **Arena tab** — AI vs AI with live board updates and eval bar
+- **Replay tab** — Load and step through saved games
+- **Baseline agent** — Negamax + alpha-beta with pattern eval, transposition table (depths 1-4)
+- **Save/load** — Save any game to JSON, replay later
 
 ## Setup
 
@@ -18,40 +16,35 @@ AlphaGo-style reinforcement learning agent for Gomoku (9x9 board, 5-in-a-row), w
 conda create -n betagomoku python=3.12 -y
 conda activate betagomoku
 pip install -r requirements.txt
-```
-
-## Run
-
-```bash
-python app.py
-# Opens at http://localhost:7860
+python app.py  # http://localhost:7860
 ```
 
 ## Test
 
 ```bash
-python -m pytest tests/ -v
+python -m pytest tests/ -v  # 74 tests
 ```
 
-## Project Structure
+## Structure
 
 ```
 betagomoku/
 ├── game/
-│   ├── types.py          # Player enum, Point namedtuple
-│   └── board.py          # Board, GomokuGameState, coordinate parsing
+│   ├── types.py            # Player enum, Point namedtuple
+│   ├── board.py            # Board, GomokuGameState, coordinate parsing
+│   └── record.py           # Save/load game records (JSON)
 ├── agent/
-│   ├── base.py           # Agent ABC
-│   └── random_agent.py   # Random baseline
+│   ├── base.py             # Agent ABC
+│   ├── random_agent.py     # Random baseline
+│   └── baseline_agent.py   # Negamax + alpha-beta + transposition table
 └── ui/
-    ├── board_component.py  # SVG renderer + JS click handler
-    └── play_tab.py         # Play tab UI + GameSession
-app.py                      # Gradio entry point
-tests/                      # Unit tests (39 passing)
+    ├── board_component.py  # SVG renderer + eval bar + JS click handler
+    ├── play_tab.py         # Human vs AI
+    ├── arena_tab.py        # AI vs AI
+    └── replay_tab.py       # Step through saved games
 ```
 
 ## Roadmap
 
 - **Phase 3**: Training dashboard — loss curves, win rate, ELO plots
-- **Phase 4**: Replay tab — step through self-play games
-- **Phase 5**: ML integration — PyTorch model, MCTS agent, encoder, checkpoints
+- **Phase 4**: ML integration — PyTorch model, MCTS agent, self-play pipeline
