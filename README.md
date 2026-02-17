@@ -1,6 +1,6 @@
 # BetaGomoku
 
-AlphaZero-style Gomoku agent with a Gradio web UI. 15x15 board, 5-in-a-row to win.
+Implementing an AlphaGo-style Gomoku agent with a Gradio web UI. 15x15 board, 5-in-a-row to win.
 
 ## Features
 
