@@ -30,6 +30,9 @@ INF = math.inf
 # Four direction axes for scanning patterns
 DIRECTIONS = [(0, 1), (1, 0), (1, 1), (1, -1)]
 
+# Max candidates to evaluate at each search depth
+MAX_CANDIDATES = 20
+
 
 def _pattern_score(count: int, open_ends: int) -> int:
     """Look up score for a consecutive group with given open ends."""
@@ -58,48 +61,58 @@ def evaluate(game_state: GomokuGameState) -> int:
     board = game_state.board
     score = 0
 
+    # Only scan from occupied cells rather than the full 15x15 grid
+    occupied = {m.point for m in game_state.moves}
+
     for dr, dc in DIRECTIONS:
-        # Scan all cells in this direction axis.
-        # Use a visited set so we only count each consecutive group once.
         visited: set[Point] = set()
 
-        for r in range(1, BOARD_SIZE + 1):
-            for c in range(1, BOARD_SIZE + 1):
-                pt = Point(r, c)
-                if pt in visited:
-                    continue
-                player = board.get(pt)
-                if player is None:
-                    continue
+        for pt in occupied:
+            if pt in visited:
+                continue
+            player = board.get(pt)
+            if player is None:
+                continue
 
-                # Count consecutive stones in this direction
-                count = 0
-                curr_r, curr_c = r, c
-                while True:
-                    p = Point(curr_r, curr_c)
-                    if not board.is_on_grid(p) or board.get(p) is not player:
-                        break
-                    visited.add(p)
-                    count += 1
-                    curr_r += dr
-                    curr_c += dc
+            # Walk backward to find the start of the group in this direction
+            sr, sc = pt.row, pt.col
+            while True:
+                pr, pc = sr - dr, sc - dc
+                p = Point(pr, pc)
+                if not board.is_on_grid(p) or board.get(p) is not player:
+                    break
+                sr, sc = pr, pc
 
-                # Count open ends
-                open_ends = 0
-                # Check before the group
-                before = Point(r - dr, c - dc)
-                if board.is_on_grid(before) and board.get(before) is None:
-                    open_ends += 1
-                # Check after the group
-                after = Point(r + dr * count, c + dc * count)
-                if board.is_on_grid(after) and board.get(after) is None:
-                    open_ends += 1
+            start = Point(sr, sc)
+            if start in visited:
+                continue
 
-                pat_score = _pattern_score(count, open_ends)
-                if player is Player.BLACK:
-                    score += pat_score
-                else:
-                    score -= pat_score
+            # Count consecutive stones in this direction from start
+            count = 0
+            curr_r, curr_c = sr, sc
+            while True:
+                p = Point(curr_r, curr_c)
+                if not board.is_on_grid(p) or board.get(p) is not player:
+                    break
+                visited.add(p)
+                count += 1
+                curr_r += dr
+                curr_c += dc
+
+            # Count open ends
+            open_ends = 0
+            before = Point(sr - dr, sc - dc)
+            if board.is_on_grid(before) and board.get(before) is None:
+                open_ends += 1
+            after = Point(sr + dr * count, sc + dc * count)
+            if board.is_on_grid(after) and board.get(after) is None:
+                open_ends += 1
+
+            pat_score = _pattern_score(count, open_ends)
+            if player is Player.BLACK:
+                score += pat_score
+            else:
+                score -= pat_score
 
     return score
 
@@ -190,11 +203,18 @@ def order_moves(game_state: GomokuGameState, candidates: list[Point]) -> list[Po
 
 
 # ---------------------------------------------------------------------------
-# Negamax with alpha-beta
+# Negamax with alpha-beta + transposition table
 # ---------------------------------------------------------------------------
 
-def negamax(game_state: GomokuGameState, depth: int, alpha: float, beta: float, color: int) -> float:
-    """Negamax search with alpha-beta pruning.
+def negamax(
+    game_state: GomokuGameState,
+    depth: int,
+    alpha: float,
+    beta: float,
+    color: int,
+    tt: Optional[dict] = None,
+) -> float:
+    """Negamax search with alpha-beta pruning and transposition table.
 
     color is +1 for BLACK's turn, -1 for WHITE's turn.
     Returns the best score from the perspective of the current player.
@@ -202,14 +222,33 @@ def negamax(game_state: GomokuGameState, depth: int, alpha: float, beta: float, 
     if game_state.is_over or depth == 0:
         return color * evaluate(game_state)
 
+    # Transposition table lookup
+    if tt is not None:
+        key = _tt_key(game_state)
+        entry = tt.get(key)
+        if entry is not None:
+            tt_depth, tt_flag, tt_score = entry
+            if tt_depth >= depth:
+                if tt_flag == 0:  # exact
+                    return tt_score
+                elif tt_flag == 1 and tt_score >= beta:  # lower bound
+                    return tt_score
+                elif tt_flag == -1 and tt_score <= alpha:  # upper bound
+                    return tt_score
+
     candidates = order_moves(game_state, generate_candidates(game_state))
     if not candidates:
         return color * evaluate(game_state)
 
+    # Cap candidates to limit branching factor
+    if len(candidates) > MAX_CANDIDATES:
+        candidates = candidates[:MAX_CANDIDATES]
+
+    orig_alpha = alpha
     best = -INF
     for move in candidates:
         game_state.apply_move(move)
-        score = -negamax(game_state, depth - 1, -beta, -alpha, -color)
+        score = -negamax(game_state, depth - 1, -beta, -alpha, -color, tt)
         game_state.undo_move()
 
         best = max(best, score)
@@ -217,7 +256,25 @@ def negamax(game_state: GomokuGameState, depth: int, alpha: float, beta: float, 
         if alpha >= beta:
             break
 
+    # Store in transposition table
+    if tt is not None:
+        if best <= orig_alpha:
+            flag = -1  # upper bound
+        elif best >= beta:
+            flag = 1   # lower bound
+        else:
+            flag = 0   # exact
+        tt[key] = (depth, flag, best)
+
     return best
+
+
+def _tt_key(game_state: GomokuGameState) -> tuple:
+    """Create a hashable key for the transposition table from the board state."""
+    return (
+        frozenset(game_state.board._grid.items()),
+        game_state.current_player,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -246,12 +303,17 @@ class BaselineAgent(Agent):
                 return move
             game_state.undo_move()
 
+        # Cap root candidates too
+        if len(candidates) > MAX_CANDIDATES:
+            candidates = candidates[:MAX_CANDIDATES]
+
+        tt: dict = {}
         best_score = -INF
         best_move: Optional[Point] = None
 
         for move in candidates:
             game_state.apply_move(move)
-            score = -negamax(game_state, self.depth - 1, -INF, INF, -color)
+            score = -negamax(game_state, self.depth - 1, -INF, -best_score, -color, tt)
             game_state.undo_move()
 
             if score > best_score:
