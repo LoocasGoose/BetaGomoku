@@ -292,7 +292,10 @@ def build_arena_tab() -> None:
     # Round-robin section
     gr.Markdown("---")
     gr.Markdown("### Round Robin Tournament")
-    gr.Markdown("Each agent plays every other agent twice (once as Black, once as White).")
+    gr.Markdown(
+        "Each agent plays every other as both colors. "
+        "Grid: row = Black, column = opponent. **W** = row won, **L** = lost, **D** = draw."
+    )
     round_robin_btn = gr.Button("All vs All", variant="primary")
     rr_status = gr.Textbox(
         value="Click 'All vs All' to start.",
