@@ -27,13 +27,13 @@ class TestPatternScoring:
         assert _pattern_score(4, 2) == 50_000
 
     def test_half_open_four(self):
-        assert _pattern_score(4, 1) == 8_000
+        assert _pattern_score(4, 1) == 15_000
 
     def test_open_three(self):
-        assert _pattern_score(3, 2) == 15_000
+        assert _pattern_score(3, 2) == 8_000
 
     def test_half_open_three(self):
-        assert _pattern_score(3, 1) == 1_000
+        assert _pattern_score(3, 1) == 2_000
 
     def test_dead_pattern(self):
         assert _pattern_score(4, 0) == 0
