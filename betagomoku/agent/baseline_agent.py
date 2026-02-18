@@ -18,12 +18,27 @@ PATTERN_SCORES: dict[tuple[int, int], int] = {
     (5, 1): 100_000,
     (5, 2): 100_000,
     (4, 2): 50_000,   # open four — unstoppable win
-    (4, 1): 15_000,   # half-open four — forcing, must block
-    (3, 2): 8_000,   # open three — creates open four next move
-    (3, 1): 2_000,    # half-open three
+    (4, 1): 12_000,   # half-open four — forcing, must block
+    (3, 2): 6_000,   # open three — creates open four next move
+    (3, 1): 1_500,    # half-open three
     (2, 2): 1_000,    # open two
     (2, 1): 100,      # half-open two
 }
+
+'''
+PATTERN_SCORES: dict[tuple[int, int], int] = {
+    (5, 0): 100_000,
+    (5, 1): 100_000,
+    (5, 2): 100_000,
+    (4, 2): 50_000,   # open four — unstoppable win
+    (4, 1): 10_000,   # half-open four — forcing, must block
+    (3, 2): 10_000,   # open three — creates open four next move
+    (3, 1): 1_000,    # half-open three
+    (2, 2): 1_000,    # open two
+    (2, 1): 100,      # half-open two
+}
+'''
+
 
 INF = math.inf
 
