@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import time
+import json
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from datetime import datetime
+from pathlib import Path
 from typing import Generator, Optional
 
 import gradio as gr
 
 from betagomoku.agent.base import Agent
-from betagomoku.agent.baseline_agent import BaselineAgent, evaluate
+from betagomoku.agent.baseline_agent import BaselineAgent, PATTERN_SCORES, evaluate
 from betagomoku.agent.random_agent import RandomAgent
 from betagomoku.game.board import GomokuGameState, format_point
 from betagomoku.game.record import save_game
@@ -176,9 +179,11 @@ def _build_grid(results: dict[tuple[str, str], Optional[str]]) -> list[list[str]
     return grid
 
 
-def _run_round_robin() -> Generator:
+TOURNAMENT_DIR = Path(__file__).resolve().parents[2] / "tournaments"
+
+
+def _run_round_robin(rr_state: dict) -> Generator:
     """Run all-vs-all tournament with parallel game execution."""
-    # Build matchup list: each pair plays once as each color
     matchups: list[tuple[str, str]] = []
     for i, a in enumerate(AGENT_NAMES):
         for j, b in enumerate(AGENT_NAMES):
@@ -191,6 +196,7 @@ def _run_round_robin() -> Generator:
     yield (
         f"Starting round-robin: {total} games across {len(AGENT_NAMES)} agents...",
         _build_grid(results),
+        rr_state,
     )
 
     completed = 0
@@ -205,7 +211,6 @@ def _run_round_robin() -> Generator:
             results[(black_name, white_name)] = winner
             completed += 1
 
-            # Yield progress update
             if winner is None:
                 result_str = "Draw"
             elif winner == black_name:
@@ -216,9 +221,10 @@ def _run_round_robin() -> Generator:
             yield (
                 f"Game {completed}/{total}: {black_name} vs {white_name} → {result_str}",
                 _build_grid(results),
+                rr_state,
             )
 
-    # Final summary: compute win counts
+    # Final summary
     wins: dict[str, int] = {name: 0 for name in AGENT_NAMES}
     draws: dict[str, int] = {name: 0 for name in AGENT_NAMES}
     for (black, white), winner in results.items():
@@ -234,10 +240,39 @@ def _run_round_robin() -> Generator:
         losses = (len(AGENT_NAMES) - 1) * 2 - wins[name] - draws[name]
         summary_lines.append(f"  {i+1}. {name}: {wins[name]}W {draws[name]}D {losses}L")
 
+    # Store results in state for saving
+    rr_state["results"] = {f"{k[0]} vs {k[1]}": v for k, v in results.items()}
+    rr_state["grid"] = _build_grid(results)
+    rr_state["summary"] = "\n".join(summary_lines)
+
     yield (
         "\n".join(summary_lines),
         _build_grid(results),
+        rr_state,
     )
+
+
+def _save_tournament(rr_state: dict) -> str:
+    """Save tournament results + pattern scores to JSON."""
+    if "results" not in rr_state:
+        return "No tournament to save. Run All vs All first."
+
+    TOURNAMENT_DIR.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"tournament_{timestamp}.json"
+
+    data = {
+        "date": datetime.now().isoformat(),
+        "pattern_scores": {f"{k[0]}_{k[1]}": v for k, v in PATTERN_SCORES.items()},
+        "results": rr_state["results"],
+        "grid": rr_state["grid"],
+        "summary": rr_state["summary"],
+    }
+
+    with open(TOURNAMENT_DIR / filename, "w") as f:
+        json.dump(data, f, indent=2)
+
+    return f"Saved: tournaments/{filename}"
 
 
 def build_arena_tab() -> None:
@@ -296,6 +331,7 @@ def build_arena_tab() -> None:
         "Each agent plays every other as both colors. "
         "Grid: row = Black, column = opponent. **W** = row won, **L** = lost, **D** = draw."
     )
+    rr_state = gr.State({})
     round_robin_btn = gr.Button("All vs All", variant="primary")
     rr_status = gr.Textbox(
         value="Click 'All vs All' to start.",
@@ -308,6 +344,9 @@ def build_arena_tab() -> None:
         interactive=False,
         column_count=len(AGENT_NAMES) + 1,
     )
+    with gr.Row():
+        save_rr_btn = gr.Button("Save Tournament")
+        save_rr_status = gr.Textbox(label="Save", interactive=False, lines=1)
 
     start_btn.click(
         fn=_run_arena,
@@ -323,5 +362,12 @@ def build_arena_tab() -> None:
 
     round_robin_btn.click(
         fn=_run_round_robin,
-        outputs=[rr_status, rr_grid],
+        inputs=[rr_state],
+        outputs=[rr_status, rr_grid, rr_state],
+    )
+
+    save_rr_btn.click(
+        fn=_save_tournament,
+        inputs=[rr_state],
+        outputs=[save_rr_status],
     )
