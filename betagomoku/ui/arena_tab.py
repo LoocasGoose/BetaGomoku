@@ -329,7 +329,8 @@ def build_arena_tab() -> None:
     gr.Markdown("### Round Robin Tournament")
     gr.Markdown(
         "Each agent plays every other as both colors. "
-        "Grid: row = Black, column = opponent. **W** = row won, **L** = lost, **D** = draw."
+        "Grid: **row = Black**, **column = White**. "
+        "Cell shows result for the row agent: **W** = won, **L** = lost, **D** = draw."
     )
     rr_state = gr.State({})
     round_robin_btn = gr.Button("All vs All", variant="primary")
@@ -340,7 +341,7 @@ def build_arena_tab() -> None:
         lines=10,
     )
     rr_grid = gr.Dataframe(
-        headers=["Black↓ / Opp→"] + [SHORT_NAMES[n] for n in AGENT_NAMES],
+        headers=["Black↓ \\ White→"] + [SHORT_NAMES[n] for n in AGENT_NAMES],
         interactive=False,
         column_count=len(AGENT_NAMES) + 1,
     )
