@@ -17,6 +17,8 @@ AGENT_CHOICES: dict[str, Agent] = {
     "BaselineAgent (d=2)": BaselineAgent(depth=2),
     "BaselineAgent (d=3)": BaselineAgent(depth=3),
     "BaselineAgent (d=4)": BaselineAgent(depth=4),
+    "BaselineAgent (d=5)": BaselineAgent(depth=5),
+    "BaselineAgent (d=6)": BaselineAgent(depth=6),
     "RandomAgent": RandomAgent(),
 }
 from betagomoku.game.board import (
