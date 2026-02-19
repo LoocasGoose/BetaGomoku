@@ -44,6 +44,7 @@ def format_point(point: Point) -> str:
 class Move:
     point: Point
     player: Player
+    elapsed: Optional[float] = None  # seconds spent choosing this move
 
     def __str__(self) -> str:
         return f"{self.player}: {format_point(self.point)}"
@@ -108,15 +109,18 @@ class GomokuGameState:
             if self.board.is_empty(Point(r, c))
         ]
 
-    def apply_move(self, point: Point) -> None:
-        """Place a stone for the current player and advance the turn."""
+    def apply_move(self, point: Point, elapsed: Optional[float] = None) -> None:
+        """Place a stone for the current player and advance the turn.
+
+        elapsed: optional seconds spent choosing this move (for display only).
+        """
         assert not self._is_over, "Game is already over"
         assert self.board.is_on_grid(point), f"Point {point} is off the grid"
         assert self.board.is_empty(point), f"Point {format_point(point)} is occupied"
 
         player = self.current_player
         self.board.place(point, player)
-        move = Move(point=point, player=player)
+        move = Move(point=point, player=player, elapsed=elapsed)
         self.moves.append(move)
 
         if self._check_win(point, player):
