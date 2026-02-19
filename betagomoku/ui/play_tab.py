@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import random as _random
+import time as _time
 from dataclasses import dataclass, field
 from typing import Optional
 
 import gradio as gr
 
+from betagomoku.agent.advanced_agent import AdvancedAgent
 from betagomoku.agent.base import Agent
 from betagomoku.agent.baseline_agent import BaselineAgent, evaluate
 from betagomoku.agent.random_agent import RandomAgent
@@ -19,6 +21,7 @@ AGENT_CHOICES: dict[str, Agent] = {
     "BaselineAgent (d=4)": BaselineAgent(depth=4),
     "BaselineAgent (d=5)": BaselineAgent(depth=5),
     "BaselineAgent (d=6)": BaselineAgent(depth=6),
+    "BaselineAdvanced (d=6)": AdvancedAgent(depth=6),
     "RandomAgent": RandomAgent(),
 }
 from betagomoku.game.board import (
@@ -38,11 +41,20 @@ class GameSession:
     game: GomokuGameState = field(default_factory=GomokuGameState)
     agent: Agent = field(default_factory=lambda: BaselineAgent(depth=2))
     human_player: Player = field(default=Player.BLACK)
+    _turn_start: float = field(default_factory=_time.time)
 
     def reset(self, human_player: Optional[Player] = None) -> None:
         self.game = GomokuGameState()
+        self._turn_start = _time.time()
         if human_player is not None:
             self.human_player = human_player
+
+    def mark_turn_start(self) -> None:
+        """Record the moment the current player's clock starts."""
+        self._turn_start = _time.time()
+
+    def elapsed_since_turn_start(self) -> float:
+        return _time.time() - self._turn_start
 
     @property
     def game_over_banner(self) -> str:
@@ -72,7 +84,8 @@ class GameSession:
     def move_history_table(self) -> list[list[str]]:
         rows: list[list[str]] = []
         for i, move in enumerate(self.game.moves):
-            rows.append([str(i + 1), str(move.player), format_point(move.point)])
+            t = f"{move.elapsed:.2f}" if move.elapsed is not None else "—"
+            rows.append([str(i + 1), str(move.player), format_point(move.point), t])
         return rows
 
 
@@ -97,8 +110,10 @@ def _ai_opening_move(session: GameSession) -> None:
         and not session.game.moves
         and not session.game.is_over
     ):
+        t0 = _time.time()
         ai_move = session.agent.select_move(session.game)
-        session.game.apply_move(ai_move)
+        session.game.apply_move(ai_move, elapsed=_time.time() - t0)
+        session.mark_turn_start()  # human's clock starts now
 
 
 def _apply_human_move(coord_text: str, session: GameSession):
@@ -140,13 +155,16 @@ def _apply_human_move(coord_text: str, session: GameSession):
             "",
         )
 
-    # Human move
-    session.game.apply_move(point)
+    # Human move (time since their turn started)
+    human_elapsed = session.elapsed_since_turn_start()
+    session.game.apply_move(point, elapsed=human_elapsed)
 
     # AI response (if game isn't over)
     if not session.game.is_over:
+        t0 = _time.time()
         ai_move = session.agent.select_move(session.game)
-        session.game.apply_move(ai_move)
+        session.game.apply_move(ai_move, elapsed=_time.time() - t0)
+        session.mark_turn_start()  # human's clock starts again
 
     return (
         _make_board_html(session),
@@ -169,8 +187,11 @@ def _new_game_with_color(color_choice: str, agent_choice: str, session: GameSess
     session.agent = AGENT_CHOICES.get(agent_choice, RandomAgent())
     session.reset(human_player=human)
 
-    # If human is White, AI (Black) plays first
+    # If human is White, AI (Black) plays first; _ai_opening_move marks turn start after
+    # If human is Black, mark turn start now (reset already sets it, but be explicit)
     _ai_opening_move(session)
+    if human is Player.BLACK:
+        session.mark_turn_start()
 
     assigned = "Black" if human is Player.BLACK else "White"
     return (
@@ -299,10 +320,10 @@ def build_play_tab() -> None:
 
             gr.Markdown("### Move History")
             move_table = gr.Dataframe(
-                headers=["#", "Player", "Move"],
-                datatype=["number", "str", "str"],
+                headers=["#", "Player", "Move", "Time (s)"],
+                datatype=["number", "str", "str", "str"],
                 interactive=False,
-                column_count=3,
+                column_count=4,
             )
 
     # Outputs shared by most callbacks

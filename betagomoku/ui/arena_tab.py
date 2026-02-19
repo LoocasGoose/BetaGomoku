@@ -11,6 +11,7 @@ from typing import Generator, Optional
 
 import gradio as gr
 
+from betagomoku.agent.advanced_agent import AdvancedAgent
 from betagomoku.agent.base import Agent
 from betagomoku.agent.baseline_agent import BaselineAgent, PATTERN_SCORES, evaluate
 from betagomoku.agent.random_agent import RandomAgent
@@ -26,6 +27,7 @@ ARENA_AGENTS: dict[str, Agent] = {
     "BaselineAgent (d=4)": BaselineAgent(depth=4),
     "BaselineAgent (d=5)": BaselineAgent(depth=5),
     "BaselineAgent (d=6)": BaselineAgent(depth=6),
+    "BaselineAdvanced (d=6)": AdvancedAgent(depth=6),
     "RandomAgent": RandomAgent(),
 }
 
@@ -34,7 +36,10 @@ AGENT_NAMES = [n for n in ARENA_AGENTS if n != "RandomAgent"]
 
 # Short names for the round-robin grid display
 SHORT_NAMES: dict[str, str] = {
-    name: name.replace("BaselineAgent ", "BA").replace("RandomAgent", "RA")
+    name: name
+        .replace("BaselineAdvanced ", "BAdv")
+        .replace("BaselineAgent ", "BA")
+        .replace("RandomAgent", "RA")
     for name in AGENT_NAMES
 }
 
@@ -59,7 +64,8 @@ def _result_message(game: GomokuGameState) -> str:
 def _move_table(game: GomokuGameState) -> list[list[str]]:
     rows: list[list[str]] = []
     for i, move in enumerate(game.moves):
-        rows.append([str(i + 1), str(move.player), format_point(move.point)])
+        t = f"{move.elapsed:.2f}" if move.elapsed is not None else "—"
+        rows.append([str(i + 1), str(move.player), format_point(move.point), t])
     return rows
 
 
@@ -90,8 +96,9 @@ def _run_arena(
         agent = black_agent if game.current_player is Player.BLACK else white_agent
         agent_name = black_name if game.current_player is Player.BLACK else white_name
 
+        t0 = time.time()
         move = agent.select_move(game)
-        game.apply_move(move)
+        game.apply_move(move, elapsed=time.time() - t0)
 
         result = _result_message(game)
         if result:
@@ -132,8 +139,10 @@ def _make_agent(name: str) -> Agent:
     """Create a fresh agent instance from its name (picklable for multiprocessing)."""
     if name == "RandomAgent":
         return RandomAgent()
-    # Parse depth from "BaselineAgent (d=N)"
     depth = int(name.split("=")[1].rstrip(")"))
+    if name.startswith("BaselineAdvanced"):
+        from betagomoku.agent.advanced_agent import AdvancedAgent as _Adv
+        return _Adv(depth=depth)
     return BaselineAgent(depth=depth)
 
 
@@ -145,8 +154,9 @@ def _play_one_game(black_name: str, white_name: str) -> tuple[str, str, Optional
 
     while not game.is_over:
         agent = black_agent if game.current_player is Player.BLACK else white_agent
+        t0 = time.time()
         move = agent.select_move(game)
-        game.apply_move(move)
+        game.apply_move(move, elapsed=time.time() - t0)
 
     if game.winner is Player.BLACK:
         return (black_name, white_name, black_name)
@@ -318,10 +328,10 @@ def build_arena_tab() -> None:
 
             gr.Markdown("### Move History")
             move_table = gr.Dataframe(
-                headers=["#", "Player", "Move"],
-                datatype=["number", "str", "str"],
+                headers=["#", "Player", "Move", "Time (s)"],
+                datatype=["number", "str", "str", "str"],
                 interactive=False,
-                column_count=3,
+                column_count=4,
             )
 
     # Round-robin section
