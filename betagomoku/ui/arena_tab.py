@@ -11,7 +11,6 @@ from typing import Generator, Optional
 
 import gradio as gr
 
-from betagomoku.agent.advanced_agent import AdvancedAgent
 from betagomoku.agent.base import Agent
 from betagomoku.agent.baseline_agent import BaselineAgent, PATTERN_SCORES, evaluate
 from betagomoku.agent.random_agent import RandomAgent
@@ -27,7 +26,6 @@ ARENA_AGENTS: dict[str, Agent] = {
     "BaselineAgent (d=4)": BaselineAgent(depth=4),
     "BaselineAgent (d=5)": BaselineAgent(depth=5),
     "BaselineAgent (d=6)": BaselineAgent(depth=6),
-    "BaselineAdvanced (d=6)": AdvancedAgent(depth=6),
     "RandomAgent": RandomAgent(),
 }
 
@@ -36,10 +34,7 @@ AGENT_NAMES = [n for n in ARENA_AGENTS if n != "RandomAgent"]
 
 # Short names for the round-robin grid display
 SHORT_NAMES: dict[str, str] = {
-    name: name
-        .replace("BaselineAdvanced ", "BAdv")
-        .replace("BaselineAgent ", "BA")
-        .replace("RandomAgent", "RA")
+    name: name.replace("BaselineAgent ", "BA").replace("RandomAgent", "RA")
     for name in AGENT_NAMES
 }
 
@@ -140,9 +135,6 @@ def _make_agent(name: str) -> Agent:
     if name == "RandomAgent":
         return RandomAgent()
     depth = int(name.split("=")[1].rstrip(")"))
-    if name.startswith("BaselineAdvanced"):
-        from betagomoku.agent.advanced_agent import AdvancedAgent as _Adv
-        return _Adv(depth=depth)
     return BaselineAgent(depth=depth)
 
 

@@ -12,24 +12,44 @@
 - Fixed-opponent training plateaus: the net overfits to AdvancedAgent's specific patterns and fails to generalize
 - It can never exceed the ceiling set by AdvancedAgent
 
-### Recommended: 3-phase curriculum
+### Note on AdvancedAgent speed
+- AdvancedAgent d=6 takes ~500 sec/move on 15x15 and barely outperforms BaselineAgent d=6 (~20 sec/move)
+- This suggests a bug or tuning issue in the advanced optimizations — do not use AdvancedAgent as supervisor until its speed is fixed
+- Use **BaselineAgent** for all supervised pre-training steps below
 
-| Phase | Method | Goal | Stop Condition |
-|-------|--------|------|----------------|
-| 1 | Supervised imitation of AdvancedAgent | Warm-start the net with strong priors | 1000–3000 positions collected, loss plateaus |
-| 2 | Self-play RL with gating | Exceed AdvancedAgent; improve beyond ceiling | Net consistently beats AdvancedAgent 70%+ |
-| 3 | Pure self-play RL | Push to peak strength | ELO plateaus across 10+ generations |
+### Recommended: staged curriculum (9x9 first, then 15x15)
+
+| Stage | Board | Supervisor | Method | Goal | Stop Condition |
+|-------|-------|-----------|--------|------|----------------|
+| 1a | 9x9 | BaselineAgent d=2 | Supervised imitation | Pipeline proof-of-concept; fast data gen | Net beats RandomAgent >95%; loss plateaus |
+| 1b | 9x9 | BaselineAgent d=6 | Supervised imitation | Stronger warm-start priors | Loss plateaus; net beats BaselineAgent d=2 >70% |
+| 2 | 9x9 | — | Self-play RL with gating | Exceed BaselineAgent d=6; prove RL works | Net beats BaselineAgent d=6 >55% |
+| 3 | 15x15 | BaselineAgent d=6 | Supervised imitation (fine-tune) | Warm-start 15x15 net from 9x9 weights | Loss plateaus |
+| 4 | 15x15 | — | Self-play RL with gating | Push to peak strength | ELO plateaus across 10+ generations |
 
 ---
 
 ## 2. Phase 1: Supervised Pre-Training
 
-- Run AdvancedAgent (d=6) on random game positions; record (board_state → best_move, eval_score) pairs
-- Train policy head to predict AdvancedAgent's move (cross-entropy)
-- Train value head to predict AdvancedAgent's eval (tanh-scaled, MSE loss)
-- Board positions: collect ~50k–200k positions from self-play games between AdvancedAgent instances
-- Duration: relatively short — a few hundred epochs until loss plateaus
-- Result: a net that immediately understands threats, blocking, basic patterns — no "cold start" problem
+All supervised phases use **BaselineAgent** (negamax + alpha-beta). Do not use AdvancedAgent until its 500 sec/move speed issue is diagnosed — at equal depth, a correctly implemented PVS + killer moves agent should be *faster* than plain negamax, not slower.
+
+### Stage 1a — BaselineAgent d=2 on 9x9 (pipeline smoke test)
+- Goal: prove the full data-gen → train → evaluate pipeline works end-to-end before investing in expensive d=6 data
+- d=2 is sub-second per move on 9x9; generate 5k–20k positions in minutes
+- Train policy head (cross-entropy on supervisor's move) and value head (MSE on tanh-scaled eval)
+- Success criterion: net beats RandomAgent >95% and pipeline runs without bugs
+- Duration: hours, not days
+
+### Stage 1b — BaselineAgent d=6 on 9x9 (stronger warm-start)
+- d=6 on 9x9 is much faster than on 15x15 (fewer legal moves): expect ~3–5 sec/move
+- Collect ~20k–50k positions from self-play games between BaselineAgent d=6 instances
+- Parallelise across Modal CPU workers if needed (embarrassingly parallel — each worker runs independent games)
+- Result: a net that understands 5-in-a-row threats, blocking, and basic tactics — no cold-start problem going into RL
+
+### Stage 3 — BaselineAgent d=6 on 15x15 (warm-start before scaling)
+- Re-use 9x9 conv weights where possible (same filter size, pad to 15x15 input); re-train head layers
+- Collect ~50k–200k positions on 15x15 before starting self-play RL
+- d=6 on 15x15: ~20 sec/move, ~30 min/game — parallelise across Modal CPU workers
 
 ---
 
@@ -101,16 +121,21 @@ Never train on data from a mix of different-generation models. The gatekeeper lo
 
 ## 8. Practical Path Forward for BetaGomoku
 
-Given the existing AdvancedAgent (d=6):
+### Ordered milestones
 
-1. **Start on 9x9 board** for rapid iteration (shorter games, smaller branching factor, faster evaluation tournaments)
-2. **Use AdvancedAgent as supervisor** for Phase 1 pre-training (already implemented, strong eval function)
-3. **Modal training**: offload self-play generation and training to Modal GPU workers; save checkpoints to Modal Volume; download locally for play
-4. **Milestone criteria**:
-   - Milestone 1: MCTS net beats RandomAgent >95% on 9x9
-   - Milestone 2: MCTS net beats BaselineAgent d=2 >55%
-   - Milestone 3: MCTS net beats AdvancedAgent d=6 >55%
-   - Milestone 4: Scale to 15x15
+| # | Stage | Criterion |
+|---|-------|-----------|
+| 1 | Stage 1a complete | Pipeline runs; net beats RandomAgent >95% on 9x9 |
+| 2 | Stage 1b complete | Net beats BaselineAgent d=2 >70% on 9x9 |
+| 3 | Stage 2 RL complete | Net beats BaselineAgent d=6 >55% on 9x9 |
+| 4 | Stage 3 complete | 15x15 net warm-started; beats BaselineAgent d=2 >70% |
+| 5 | Stage 4 RL complete | Net beats BaselineAgent d=6 >55% on 15x15 |
+
+### Infrastructure notes
+- **Supervisor data generation**: CPU-bound; parallelise across Modal CPU workers (each worker runs independent games, no coordination needed)
+- **RL self-play**: CPU-bound per worker but many workers in parallel; batch net inference on GPU to serve all workers
+- **Neural net training**: GPU on Modal; save checkpoints to Modal Volume; download locally for play tab
+- **AdvancedAgent**: do not use as supervisor until the ~500 sec/move speed issue is diagnosed (at d=6 it should be faster than BaselineAgent d=6, not 25× slower)
 
 ---
 

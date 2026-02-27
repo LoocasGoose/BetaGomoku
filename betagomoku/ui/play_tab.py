@@ -9,7 +9,6 @@ from typing import Optional
 
 import gradio as gr
 
-from betagomoku.agent.advanced_agent import AdvancedAgent
 from betagomoku.agent.base import Agent
 from betagomoku.agent.baseline_agent import BaselineAgent, evaluate
 from betagomoku.agent.random_agent import RandomAgent
@@ -21,7 +20,6 @@ AGENT_CHOICES: dict[str, Agent] = {
     "BaselineAgent (d=4)": BaselineAgent(depth=4),
     "BaselineAgent (d=5)": BaselineAgent(depth=5),
     "BaselineAgent (d=6)": BaselineAgent(depth=6),
-    "BaselineAdvanced (d=6)": AdvancedAgent(depth=6),
     "RandomAgent": RandomAgent(),
 }
 from betagomoku.game.board import (

@@ -73,7 +73,7 @@ FORCING_MOVE_HEURISTIC = 12_000
 
 # Quiescence search: extend depth=0 leaves by this many extra plies,
 # searching only forcing moves to avoid the horizon effect.
-QUIESCENCE_DEPTH = 2
+QUIESCENCE_DEPTH = 1
 MAX_QUIESCENCE_FORCING = 5    # cap on forcing moves explored per quiescence node
 
 # Late Move Reductions (LMR): reduce depth-1 for non-forcing moves at late indices.
@@ -505,11 +505,9 @@ def generate_candidates(game_state: GomokuGameState) -> list[Point]:
     # the squares that block the open-3 ends.
     opp_open3_sqrs, opp_open3_count = _open_three_squares(game_state, opponent)
     if opp_open3_count >= 2:
-        counter = [m for m in candidates if _move_heuristic(game_state, m) >= 50_000]
         blocks = [p for p in opp_open3_sqrs if board.is_on_grid(p) and board.is_empty(p)]
-        combined = list(dict.fromkeys(counter + blocks))
-        if len(combined) >= 2:
-            return combined
+        if len(blocks) >= 2:
+            return blocks
 
     return candidates
 
@@ -592,6 +590,37 @@ def _sort_key(
     return (4, -(h + history.get(move, 0)))
 
 
+def _order_with_cache(
+    game_state: GomokuGameState,
+    candidates: list[Point],
+    tt_move: Optional[Point],
+    killers: list[Optional[Point]],
+    history: dict[Point, int],
+) -> tuple[list[Point], dict[Point, int]]:
+    """Sort candidates and return (sorted_list, heuristics_cache).
+
+    Computes _move_heuristic exactly once per candidate so that callers can
+    reuse the values for capping, LMR checks, and forcing-move detection
+    without any redundant recomputation.
+    """
+    killer_set = frozenset(k for k in killers if k is not None)
+    heuristics: dict[Point, int] = {m: _move_heuristic(game_state, m) for m in candidates}
+
+    def _key(move: Point) -> tuple:
+        if move == tt_move:
+            return (0,)
+        h = heuristics[move]
+        if h >= 100_000:
+            return (1, -h)
+        if h >= 6_000:
+            return (2, -h)
+        if move in killer_set:
+            return (3, -history.get(move, 0))
+        return (4, -(h + history.get(move, 0)))
+
+    return sorted(candidates, key=_key), heuristics
+
+
 def order_moves(
     game_state: GomokuGameState,
     candidates: list[Point],
@@ -600,11 +629,8 @@ def order_moves(
     history: dict[Point, int],
 ) -> list[Point]:
     """Sort candidates by tiered priority (best first)."""
-    killer_set = frozenset(k for k in killers if k is not None)
-    return sorted(
-        candidates,
-        key=lambda m: _sort_key(m, game_state, tt_move, killer_set, history),
-    )
+    sorted_moves, _ = _order_with_cache(game_state, candidates, tt_move, killers, history)
+    return sorted_moves
 
 
 # ---------------------------------------------------------------------------
@@ -719,18 +745,15 @@ def _pvs(
     valid_killers = [k for k in depth_killers if k is not None and game_state.board.is_empty(k)]
     killer_set = frozenset(valid_killers)
 
-    ordered = order_moves(game_state, candidates, tt_move, valid_killers, history)
+    ordered, heuristics = _order_with_cache(game_state, candidates, tt_move, valid_killers, history)
     if len(ordered) > MAX_CANDIDATES_INNER:
-        forcing_moves = [m for m in ordered if _move_heuristic(game_state, m) >= FORCING_MOVE_HEURISTIC]
+        forcing_moves = [m for m in ordered if heuristics[m] >= FORCING_MOVE_HEURISTIC]
         capped = ordered[:MAX_CANDIDATES_INNER]
         ordered = list(dict.fromkeys(forcing_moves + capped))
 
-    # Precompute heuristics for LMR decisions (only at depths where LMR applies)
+    # Build LMR heuristic lookup from the already-computed cache (no recomputation)
     if depth >= LMR_MIN_DEPTH and len(ordered) > LMR_MIN_INDEX:
-        lmr_heuristics: dict[Point, int] = {
-            m: _move_heuristic(game_state, m)
-            for m in ordered[LMR_MIN_INDEX:]
-        }
+        lmr_heuristics: dict[Point, int] = {m: heuristics[m] for m in ordered[LMR_MIN_INDEX:]}
     else:
         lmr_heuristics: dict[Point, int] = {}
 
@@ -827,9 +850,9 @@ def _root_search(
     tt_move: Optional[Point] = root_entry[3] if root_entry is not None else None
     depth_killers: list[Optional[Point]] = killers[depth] if depth < len(killers) else [None, None]
 
-    ordered = order_moves(game_state, candidates, tt_move, depth_killers, history)
+    ordered, heuristics = _order_with_cache(game_state, candidates, tt_move, depth_killers, history)
     if len(ordered) > MAX_CANDIDATES_ROOT:
-        forcing_moves = [m for m in ordered if _move_heuristic(game_state, m) >= FORCING_MOVE_HEURISTIC]
+        forcing_moves = [m for m in ordered if heuristics[m] >= FORCING_MOVE_HEURISTIC]
         capped = ordered[:MAX_CANDIDATES_ROOT]
         ordered = list(dict.fromkeys(forcing_moves + capped))
 
@@ -909,10 +932,12 @@ class AdvancedAgent(Agent):
 
         # Cap root candidates before iterative deepening
         if len(candidates) > MAX_CANDIDATES_ROOT:
-            initial_order = order_moves(game_state, candidates, None, [None, None], {})
+            initial_order, init_heuristics = _order_with_cache(
+                game_state, candidates, None, [None, None], {}
+            )
             forcing_moves = [
                 m for m in initial_order
-                if _move_heuristic(game_state, m) >= FORCING_MOVE_HEURISTIC
+                if init_heuristics[m] >= FORCING_MOVE_HEURISTIC
             ]
             capped = initial_order[:MAX_CANDIDATES_ROOT]
             candidates = list(dict.fromkeys(forcing_moves + capped))
